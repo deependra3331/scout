@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scout: Co-Pilot Chat</title>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0b0f19; color: #fff; margin: 0; padding: 20px; display: flex; justify-content: center; height: 100vh; box-sizing: border-box; }
+        .app { width: 100%; max-width: 900px; display: flex; gap: 20px; }
+        .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; }
+        
+        /* Chat Area */
+        .chat-container { flex: 2; display: flex; flex-direction: column; }
+        .chat-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .scout-avatar { width: 40px; height: 40px; background: #a855f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; box-shadow: 0 0 15px rgba(168,85,247,0.4); }
+        .chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; padding-right: 10px; }
+        .message { padding: 12px 16px; border-radius: 12px; max-width: 80%; line-height: 1.4; }
+        .msg-user { background: rgba(255,255,255,0.1); align-self: flex-end; border-bottom-right-radius: 4px; }
+        .msg-scout { background: rgba(168,85,247,0.2); border: 1px solid rgba(168,85,247,0.4); align-self: flex-start; border-bottom-left-radius: 4px; }
+        .chat-input { display: flex; gap: 10px; margin-top: 20px; }
+        input[type="text"] { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 12px 16px; border-radius: 8px; color: #fff; font-size: 1rem; }
+        input[type="text"]:focus { outline: none; border-color: #a855f7; }
+        button { background: #a855f7; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        button:hover { background: #9333ea; }
+        
+        /* Side Panel */
+        .side-panel { flex: 1; display: flex; flex-direction: column; gap: 20px; }
+        h3 { margin-top: 0; color: #a0aabf; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+        .pact-card { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px dashed rgba(255,255,255,0.1); }
+        .pact-card strong { color: #a855f7; font-size: 1.1rem; display: block; margin-bottom: 5px; }
+        .drift-btn { background: transparent; border: 1px solid #ef4444; color: #ef4444; width: 100%; margin-top: 10px; }
+        .drift-btn:hover { background: rgba(239,68,68,0.1); }
+        
+        /* Proactive Nudge Modal */
+        .nudge-modal { position: fixed; bottom: 30px; right: 30px; width: 350px; background: #1f2937; border-left: 4px solid #ef4444; padding: 20px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); transform: translateY(150%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .nudge-modal.visible { transform: translateY(0); }
+        .nudge-title { color: #ef4444; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Main Chat -->
+        <div class="chat-container glass">
+            <div class="chat-header">
+                <div class="scout-avatar">S</div>
+                <div>
+                    <h2 style="margin:0; font-size: 1.2rem;">Scout</h2>
+                    <span style="font-size: 0.8rem; color: #1ed760;">Online</span>
+                </div>
+            </div>
+            
+            <div class="chat-log" id="chat-log">
+                <div class="message msg-scout">Hey there! I'm Scout. What kind of musical expedition are we going on today? Tell me what you want to explore.</div>
+            </div>
+            
+            <div class="chat-input">
+                <input type="text" id="msg-input" placeholder="e.g., 'I want to get into weird electronic music'" onkeypress="if(event.key === 'Enter') sendMessage()">
+                <button onclick="sendMessage()" id="send-btn">Send</button>
+            </div>
+        </div>
+        
+        <!-- State & Debug Panel -->
+        <div class="side-panel glass">
+            <div>
+                <h3>Active Pact</h3>
+                <div class="pact-card" id="pact-card">
+                    <p style="opacity:0.5; text-align:center;">No active pact. Chat with Scout to start one!</p>
+                </div>
+            </div>
+            
+            <div style="margin-top: auto;">
+                <h3>Drift Simulation</h3>
+                <p style="font-size: 0.8rem; color:#a0aabf;">Simulate playing 5 pop songs in a row to trigger a proactive defense nudge.</p>
+                <button class="drift-btn" onclick="simulateDrift()">Simulate Drift (Pop)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nudge Modal -->
+    <div class="nudge-modal" id="nudge-modal">
+        <div class="nudge-title">⚠️ Scout Intervention</div>
+        <p id="nudge-text" style="font-size: 0.95rem; line-height: 1.4;"></p>
+        <button style="margin-top: 15px; width: 100%;" onclick="document.getElementById('nudge-modal').classList.remove('visible')">Got it</button>
+    </div>
+
+    <script>
+        let messageHistory = [];
+
+        function appendMessage(role, content) {
+            const log = document.getElementById('chat-log');
+            const div = document.createElement('div');
+            div.className = `message ${role === 'user' ? 'msg-user' : 'msg-scout'}`;
+            div.textContent = content;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('msg-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = '';
+            appendMessage('user', text);
+            messageHistory.push({ role: 'user', content: text });
+            
+            const btn = document.getElementById('send-btn');
+            btn.textContent = '...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/phase2/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ messages: messageHistory })
+                });
+                
+                const data = await res.json();
+                
+                appendMessage('assistant', data.reply);
+                messageHistory.push({ role: 'assistant', content: data.reply });
+                
+                if (data.pact_created) {
+                    updatePactUI(data.intent);
+                }
+            } catch (err) {
+                appendMessage('assistant', "Oops, connection error!");
+            } finally {
+                btn.textContent = 'Send';
+                btn.disabled = false;
+            }
+        }
+
+        function updatePactUI(intent) {
+            const card = document.getElementById('pact-card');
+            card.innerHTML = `
+                <strong>${intent.target_genre_or_artist}</strong>
+                <div style="font-size: 0.85rem; color:#a0aabf; margin-top:10px;">
+                    <p><strong>Breadth:</strong> ${intent.breadth}</p>
+                    <p><strong>Intensity:</strong> ${intent.intensity}</p>
+                    <p><strong>Motivation:</strong> ${intent.user_motivation}</p>
+                </div>
+            `;
+            document.body.style.backgroundImage = 'radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.1) 0%, transparent 60%)';
+        }
+
+        async function simulateDrift() {
+            const res = await fetch('/api/phase2/simulate_drift', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ genre: "Pop" })
+            });
+            const data = await res.json();
+            
+            document.getElementById('nudge-text').textContent = data.nudge;
+            document.getElementById('nudge-modal').classList.add('visible');
+        }
+    </script>
+</body>
+</html>

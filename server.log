@@ -1,0 +1,29 @@
+INFO:     Started server process [23096]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:3016 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53753 - "GET /app HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53753 - "GET /app/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53755 - "GET /phase1 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53755 - "GET /phase1/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53759 - "GET /app/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60999 - "GET /app HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:60999 - "GET /app/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60999 - "GET /api/phase1/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60999 - "GET /api/phase3/taste_map HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60999 - "GET /api/phase1/recommendations/homepage HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60999 - "GET /%40vite/client HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52309 - "POST /api/phase2/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61449 - "POST /api/phase2/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61449 - "POST /api/phase2/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61449 - "GET /api/phase1/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61449 - "GET /api/phase3/taste_map HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61449 - "GET /api/phase1/recommendations/homepage HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56585 - "POST /api/phase2/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56585 - "GET /api/phase1/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56585 - "GET /api/phase3/taste_map HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56585 - "GET /api/phase1/recommendations/homepage HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51353 - "POST /api/phase2/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51353 - "GET /api/phase1/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51353 - "GET /api/phase3/taste_map HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51353 - "GET /api/phase1/recommendations/homepage HTTP/1.1" 200 OK

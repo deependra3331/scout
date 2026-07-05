@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Scout — AI Music Exploration Co-Pilot</title>
+    <meta name="description" content="Spotify Scout helps you explore new music genres and defend your discovery from reverting to old habits.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-deep: #000000;
+            --bg-surface: rgba(255,255,255,0.035);
+            --bg-hover: rgba(255,255,255,0.06);
+            --glass-border: rgba(255,255,255,0.08);
+            --accent-purple: #1db954; /* Spotify green as primary accent */
+            --accent-purple-dim: rgba(29, 185, 84, 0.15);
+            --accent-green: #1ed760;
+            --accent-green-dim: rgba(30, 215, 96, 0.12);
+            --accent-red: #ef4444;
+            --accent-red-dim: rgba(239,68,68,0.12);
+            --text-primary: #ffffff;
+            --text-secondary: #9ea4bb;
+            --text-muted: #5e6278;
+            --font-body: 'Inter', system-ui, sans-serif;
+            --font-heading: 'Space Grotesk', 'Inter', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--glass-border);
+            background: rgba(5,5,8,0.9);
+            backdrop-filter: blur(20px);
+            z-index: 100;
+            position: relative;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .header-logo {
+            height: 32px;
+            object-fit: contain;
+        }
+        .header-title {
+            font-family: var(--font-heading);
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .header-title span {
+            color: var(--accent-green);
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .spotify-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .spotify-status.disconnected {
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
+            border: 1px solid rgba(30,215,96,0.2);
+        }
+        .spotify-status.disconnected:hover {
+            background: rgba(30,215,96,0.2);
+        }
+        .spotify-status.connected {
+            background: var(--bg-surface);
+            color: var(--accent-green);
+            border: 1px solid var(--glass-border);
+        }
+        .status-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--accent-green);
+        }
+
+        /* ===== MAIN LAYOUT ===== */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 340px 1fr 340px;
+            height: calc(100vh - 57px);
+            overflow: hidden;
+        }
+
+        /* ===== GLASS PANELS ===== */
+        .panel {
+            border-right: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel:last-child { border-right: none; border-left: 1px solid var(--glass-border); }
+        .panel-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--glass-border);
+            flex-shrink: 0;
+        }
+        .panel-label {
+            font-family: var(--font-heading);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+        }
+
+        /* ===== LEFT PANEL: CHAT ===== */
+        .chat-header-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .scout-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--accent-green);
+            box-shadow: 0 0 14px rgba(30, 215, 96, 0.3);
+        }
+        .scout-info h3 {
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        .scout-info .online-tag {
+            font-size: 0.7rem;
+            color: var(--accent-green);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .online-tag::before {
+            content: '';
+            width: 5px; height: 5px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .chat-log {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .chat-log::-webkit-scrollbar { width: 4px; }
+        .chat-log::-webkit-scrollbar-track { background: transparent; }
+        .chat-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .msg {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            animation: msgFadeIn 0.3s ease;
+        }
+        .msg-scout {
+            align-self: flex-start;
+            background: var(--accent-purple-dim);
+            border: 1px solid rgba(29, 185, 84, 0.2);
+            border-bottom-left-radius: 4px;
+        }
+        .msg-user {
+            align-self: flex-end;
+            background: var(--bg-hover);
+            border: 1px solid var(--glass-border);
+            border-bottom-right-radius: 4px;
+        }
+        .msg-typing {
+            align-self: flex-start;
+            background: var(--accent-purple-dim);
+            border: 1px solid rgba(29, 185, 84, 0.15);
+            border-bottom-left-radius: 4px;
+            padding: 12px 18px;
+        }
+        .typing-dots { display: flex; gap: 4px; }
+        .typing-dots span {
+            width: 6px; height: 6px;
+            background: var(--accent-purple);
+            border-radius: 50%;
+            animation: typingBounce 1.2s infinite;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        .chat-input-row {
+            padding: 14px 20px;
+            border-top: 1px solid var(--glass-border);
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .chat-input {
+            flex: 1;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--glass-border);
+            padding: 10px 14px;
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.88rem;
+            font-family: var(--font-body);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .chat-input:focus { border-color: var(--accent-purple); }
+        .chat-input::placeholder { color: var(--text-muted); }
+        .send-btn {
+            background: var(--accent-purple);
+            color: #fff;
+            border: none;
+            width: 42px; height: 42px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, transform 0.1s;
+            flex-shrink: 0;
+        }
+        .send-btn:hover { background: #9333ea; }
+        .send-btn:active { transform: scale(0.95); }
+        .send-btn svg { width: 18px; height: 18px; }
+
+        /* ===== CENTER: TASTE MAP ===== */
+        .map-area {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+            background: radial-gradient(ellipse at 50% 50%, rgba(29, 185, 84, 0.03) 0%, transparent 70%);
+        }
+        .map-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: 1;
+        }
+        .map-canvas {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+        }
+        .map-node {
+            position: absolute;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            z-index: 3;
+        }
+        .map-node:hover { transform: scale(1.15); z-index: 10; }
+        .map-node-label {
+            position: absolute;
+            bottom: -22px;
+            white-space: nowrap;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+
+        .node-comfort {
+            width: 72px; height: 72px;
+            background: var(--accent-green-dim);
+            border: 2px solid var(--accent-green);
+            box-shadow: 0 0 25px rgba(30,215,96,0.15);
+        }
+        .node-comfort .map-node-label { color: var(--accent-green); }
+        .node-comfort .node-icon { color: var(--accent-green); font-size: 1.1rem; }
+
+        .node-familiar {
+            width: 60px; height: 60px;
+            background: rgba(30,215,96,0.06);
+            border: 1.5px solid rgba(30,215,96,0.4);
+            box-shadow: 0 0 15px rgba(30,215,96,0.08);
+        }
+        .node-familiar .map-node-label { color: rgba(30,215,96,0.7); }
+        .node-familiar .node-icon { color: rgba(30,215,96,0.6); font-size: 0.9rem; }
+
+        .node-exploring {
+            width: 88px; height: 88px;
+            background: var(--accent-purple-dim);
+            border: 2px solid var(--accent-purple);
+            box-shadow: 0 0 35px rgba(29, 185, 84, 0.25);
+            animation: pactPulse 2.5s infinite;
+        }
+        .node-exploring .map-node-label { color: var(--accent-purple); font-size: 0.72rem; }
+        .node-exploring .node-icon { color: var(--accent-purple); font-size: 1.3rem; }
+
+        .node-explored {
+            width: 50px; height: 50px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        .node-explored .map-node-label { color: var(--text-muted); }
+        .node-explored .node-icon { color: var(--text-secondary); font-size: 0.8rem; }
+
+        .node-uncharted {
+            width: 44px; height: 44px;
+            background: rgba(255,255,255,0.015);
+            border: 1px dashed rgba(255,255,255,0.1);
+        }
+        .node-uncharted .map-node-label { color: rgba(255,255,255,0.2); }
+        .node-uncharted .node-icon { color: rgba(255,255,255,0.15); font-size: 0.75rem; }
+
+        .map-edge {
+            position: absolute;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* ===== RIGHT PANEL: FEED & CONTROLS ===== */
+        .right-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 18px;
+        }
+        .right-scroll::-webkit-scrollbar { width: 4px; }
+        .right-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        /* Pact Card */
+        .pact-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .pact-empty {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            padding: 20px 0;
+        }
+        .pact-target {
+            font-family: var(--font-heading);
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-purple);
+            margin-bottom: 8px;
+        }
+        .pact-meta {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .pact-meta strong { color: var(--text-primary); font-weight: 500; }
+
+        /* Surface Tabs */
+        .surface-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .tab-btn {
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 0.72rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: var(--accent-purple-dim);
+            border-color: rgba(168,85,247,0.3);
+            color: var(--accent-purple);
+        }
+        .tab-btn:hover { background: var(--bg-hover); }
+
+        /* Track Cards */
+        .track-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .track-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: var(--bg-surface);
+            border: 1px solid var(--glass-border);
+            transition: background 0.2s;
+        }
+        .track-card:hover { background: var(--bg-hover); }
+        .track-card.is-pact {
+            border-left: 3px solid var(--accent-purple);
+        }
+        .track-art {
+            width: 40px; height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
+            background: #111;
+        }
+        .track-info { flex: 1; min-width: 0; }
+        .track-title {
+            font-size: 0.82rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .track-artist {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .track-genre-tag {
+            font-size: 0.62rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--bg-hover);
+            color: var(--text-muted);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .track-genre-tag.pact-tag {
+            background: var(--accent-purple-dim);
+            color: var(--accent-purple);
+        }
+
+        /* Action Buttons */
+        .action-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--glass-border);
+        }
+        .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            width: 100%;
+        }
+        .btn-drift {
+            background: transparent;
+            border: 1px solid rgba(239,68,68,0.3);
+            color: var(--accent-red);
+        }
+        .btn-drift:hover { background: var(--accent-red-dim); }
+        .btn-recap {
+            background: var(--accent-purple);
+            color: #fff;
+        }
+        .btn-recap:hover { background: #169c43; }
+        .btn-clear {
+            background: transparent;
+            border: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+        .btn-clear:hover { background: var(--bg-hover); color: var(--text-secondary); }
+
+        /* ===== NUDGE TOAST ===== */
+        .nudge-toast {
+            position: fixed;
+            bottom: 24px; right: 24px;
+            width: 380px;
+            background: #111318;
+            border: 1px solid rgba(239,68,68,0.2);
+            border-left: 4px solid var(--accent-red);
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+            transform: translateY(120%);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 200;
+        }
+        .nudge-toast.show { transform: translateY(0); }
+        .nudge-toast-title {
+            font-family: var(--font-heading);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--accent-red);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .nudge-toast-msg {
+            font-size: 0.88rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+        .nudge-dismiss {
+            margin-top: 12px;
+            background: transparent;
+            border: 1px solid var(--glass-border);
+            color: var(--text-secondary);
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        .nudge-dismiss:hover { background: var(--bg-hover); }
+
+        /* ===== RECAP MODAL ===== */
+        .recap-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .recap-overlay.show { display: flex; }
+        .recap-modal {
+            width: 420px;
+            background: linear-gradient(160deg, #092010 0%, #040e07 50%, #000000 100%);
+            border: 1px solid rgba(29, 185, 84, 0.2);
+            border-radius: 24px;
+            padding: 40px 32px;
+            text-align: center;
+            animation: recapIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+        .recap-modal::before {
+            content: '';
+            position: absolute;
+            top: -60%; left: -60%;
+            width: 220%; height: 220%;
+            background: radial-gradient(circle, rgba(29, 185, 84, 0.08) 0%, transparent 50%);
+            animation: recapGlow 8s linear infinite;
+        }
+        .recap-inner { position: relative; z-index: 1; }
+        .recap-badge {
+            display: inline-block;
+            background: var(--accent-purple);
+            color: #fff;
+            padding: 5px 16px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 24px;
+        }
+        .recap-story {
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: #c4eed4;
+            font-style: italic;
+            margin-bottom: 28px;
+        }
+        .recap-share {
+            background: var(--accent-green);
+            color: #000;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 30px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.88rem;
+            transition: transform 0.2s;
+        }
+        .recap-share:hover { transform: scale(1.05); }
+        .recap-close {
+            position: absolute;
+            top: 16px; right: 16px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.2rem;
+            z-index: 2;
+        }
+
+        /* ===== PACT CELEBRATION ===== */
+        .confetti-container {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 250;
+            overflow: hidden;
+        }
+        .confetti-piece {
+            position: absolute;
+            top: -10px;
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            animation: confettiFall 2.5s ease-out forwards;
+        }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes msgFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+        @keyframes pactPulse {
+            0% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.3); }
+            70% { box-shadow: 0 0 0 18px rgba(29, 185, 84, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
+        }
+        @keyframes recapIn {
+            from { opacity: 0; transform: scale(0.85); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes recapGlow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes confettiFall {
+            0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+            100% { opacity: 0; transform: translateY(100vh) rotate(720deg); }
+        }
+        @keyframes panelFadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .panel { animation: panelFadeIn 0.5s ease; }
+        .panel:nth-child(2) { animation-delay: 0.1s; }
+        .panel:nth-child(3) { animation-delay: 0.2s; }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1100px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+                overflow-y: auto;
+            }
+            .map-area { min-height: 400px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+    <div class="header-left">
+        <img src="/spotify_logo.jpg" alt="Spotify Logo" class="header-logo">
+        <div class="header-title"><span>Spotify</span> Scout</div>
+    </div>
+    <div class="header-right">
+        <div class="spotify-status disconnected" id="spotify-status" onclick="connectSpotify()">
+            <div class="status-dot"></div>
+            <span id="spotify-label">Connect Spotify</span>
+        </div>
+    </div>
+</header>
+
+<!-- MAIN 3-COLUMN LAYOUT -->
+<div class="main-layout">
+
+    <!-- LEFT: CHAT PANEL -->
+    <div class="panel" id="chat-panel">
+        <div class="panel-header">
+            <div class="panel-label">Expedition Log</div>
+            <div class="chat-header-row">
+                <img src="/scout_avatar.jpg" alt="Spotify Scout" class="scout-avatar">
+                <div class="scout-info">
+                    <h3>Spotify Scout</h3>
+                    <div class="online-tag">Online</div>
+                </div>
+            </div>
+        </div>
+        <div class="chat-log" id="chat-log">
+            <div class="msg msg-scout">Hey — I'm Spotify Scout. Your map's looking pretty familiar right now. What corner of music have you been eyeing from a distance?</div>
+        </div>
+        <div class="chat-input-row">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Tell Scout what you want to explore..." onkeydown="if(event.key==='Enter')sendChat()">
+            <button class="send-btn" id="send-btn" onclick="sendChat()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- CENTER: TASTE MAP -->
+    <div class="panel" style="border-right: none;">
+        <div class="panel-header" style="display:flex; align-items:center; justify-content:space-between;">
+            <div class="panel-label">Taste Map</div>
+            <div style="font-size:0.65rem; color:var(--text-muted);">
+                <span style="color:var(--accent-green);">●</span> Familiar &nbsp;
+                <span style="color:var(--accent-purple);">●</span> Exploring &nbsp;
+                <span style="color:var(--text-muted);">◌</span> Uncharted
+            </div>
+        </div>
+        <div class="map-area" id="map-area">
+            <div class="map-grid"></div>
+            <svg class="map-canvas" id="map-edges"></svg>
+            <div id="map-nodes"></div>
+        </div>
+    </div>
+
+    <!-- RIGHT: FEED & CONTROLS -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-label">Mission Control</div>
+        </div>
+        <div class="right-scroll">
+            <!-- Active Pact -->
+            <div class="section-title" style="margin-top: 4px;">Active Expedition</div>
+            <div class="pact-card" id="pact-card">
+                <div class="pact-empty">No active expedition.<br>Chat with Spotify Scout to start one.</div>
+            </div>
+
+            <!-- Surface Tabs & Recommendations -->
+            <div class="section-title">Recommendations</div>
+            <div class="surface-tabs" id="surface-tabs">
+                <button class="tab-btn active" data-surface="home">Home</button>
+                <button class="tab-btn" data-surface="explore">Explore</button>
+                <button class="tab-btn" data-surface="pact">Pact</button>
+            </div>
+            <div class="track-list" id="track-list">
+                <!-- Tracks loaded dynamically -->
+            </div>
+
+            <!-- Actions -->
+            <div class="action-group">
+                <button class="action-btn btn-drift" onclick="simulateDrift()">⚠ Simulate Drift-Back</button>
+                <button class="action-btn btn-recap" onclick="generateRecap()">✦ Generate Expedition Recap</button>
+                <button class="action-btn btn-clear" onclick="clearPacts()">Clear Active Expedition</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NUDGE TOAST -->
+<div class="nudge-toast" id="nudge-toast">
+    <div class="nudge-toast-title">Scout Intervention</div>
+    <div class="nudge-toast-msg" id="nudge-msg"></div>
+    <button class="nudge-dismiss" onclick="document.getElementById('nudge-toast').classList.remove('show')">Dismiss</button>
+</div>
+
+<!-- RECAP MODAL -->
+<div class="recap-overlay" id="recap-overlay">
+    <div class="recap-modal">
+        <button class="recap-close" onclick="document.getElementById('recap-overlay').classList.remove('show')">✕</button>
+        <div class="recap-inner">
+            <div class="recap-badge">Expedition Recap</div>
+            <div class="recap-story" id="recap-story">Loading...</div>
+            <button class="recap-share">Share to Instagram</button>
+        </div>
+    </div>
+</div>
+
+<!-- CONFETTI CONTAINER -->
+<div class="confetti-container" id="confetti-container"></div>
+
+<script>
+// ===== STATE =====
+let chatHistory = [];
+let currentSurface = 'home';
+
+// ===== GENRE COORDINATES (for 16 genres, arranged as a constellation) =====
+const GENRE_COORDS = {
+    'Pop':         { x: 25, y: 30 },
+    'Indie Pop':   { x: 18, y: 45 },
+    'R&B':         { x: 32, y: 52 },
+    'Rock':        { x: 55, y: 22 },
+    'Indie Rock':  { x: 45, y: 35 },
+    'Hip Hop':     { x: 38, y: 68 },
+    'Electronic':  { x: 68, y: 42 },
+    'Ambient':     { x: 78, y: 28 },
+    'Jazz':        { x: 72, y: 62 },
+    'Classical':   { x: 85, y: 48 },
+    'Metal':       { x: 58, y: 78 },
+    'Folk':        { x: 15, y: 70 },
+    'Punk':        { x: 48, y: 85 },
+    'Blues':        { x: 62, y: 55 },
+    'Latin':       { x: 28, y: 82 },
+    'Afrobeats':   { x: 82, y: 78 },
+};
+
+const GENRE_EDGES = [
+    ['Pop', 'Indie Pop'], ['Pop', 'R&B'],
+    ['Rock', 'Indie Rock'], ['Rock', 'Metal'], ['Rock', 'Punk'],
+    ['Indie Rock', 'Indie Pop'], ['Indie Rock', 'Folk'],
+    ['Electronic', 'Ambient'], ['Electronic', 'Hip Hop'],
+    ['Jazz', 'Blues'], ['Jazz', 'Classical'],
+    ['Hip Hop', 'R&B'],
+    ['Folk', 'Blues'],
+    ['Latin', 'Afrobeats'], ['Latin', 'Hip Hop'],
+    ['Metal', 'Punk'],
+];
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+    loadTasteMap();
+    loadRecommendations('home');
+    loadState();
+    checkSpotifyStatus();
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentSurface = btn.dataset.surface;
+            loadRecommendations(currentSurface);
+        });
+    });
+});
+
+// ===== API CALLS =====
+async function loadState() {
+    try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+        renderPactCard(data.active_pact);
+    } catch(e) { console.error('State load error:', e); }
+}
+
+async function loadTasteMap() {
+    try {
+        const res = await fetch('/api/taste_map');
+        const data = await res.json();
+        renderTasteMap(data.genres || []);
+    } catch(e) { console.error('Map load error:', e); }
+}
+
+async function loadRecommendations(surface) {
+    try {
+        const res = await fetch(`/api/recommendations/${surface}`);
+        const data = await res.json();
+        renderTracks(data.tracks || [], data.pact_genre);
+    } catch(e) { console.error('Recs load error:', e); }
+}
+
+async function checkSpotifyStatus() {
+    try {
+        const res = await fetch('/api/auth/status');
+        const data = await res.json();
+        const el = document.getElementById('spotify-status');
+        const label = document.getElementById('spotify-label');
+        if (data.connected) {
+            el.classList.remove('disconnected');
+            el.classList.add('connected');
+            label.textContent = data.display_name || 'Connected';
+        }
+    } catch(e) {}
+}
+
+async function connectSpotify() {
+    try {
+        const res = await fetch('/api/auth/login');
+        const data = await res.json();
+        if (data.auth_url) window.open(data.auth_url, '_blank');
+    } catch(e) { console.error('Auth error:', e); }
+}
+
+async function sendChat() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    appendMsg('user', text);
+    chatHistory.push({ role: 'user', content: text });
+
+    const typingEl = showTyping();
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text, conversation_history: chatHistory.slice(0, -1) })
+        });
+        const data = await res.json();
+        removeTyping(typingEl);
+        appendMsg('scout', data.reply);
+        chatHistory.push({ role: 'assistant', content: data.reply });
+
+        if (data.pact_created) {
+            celebratePact();
+            loadTasteMap();
+            loadRecommendations(currentSurface);
+            loadState();
+        }
+    } catch(e) {
+        removeTyping(typingEl);
+        appendMsg('scout', 'Lost signal momentarily. Try again?');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function simulateDrift() {
+    try {
+        const res = await fetch('/api/simulate_drift', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        const data = await res.json();
+        if (data.error) {
+            document.getElementById('nudge-msg').textContent = data.error;
+        } else {
+            document.getElementById('nudge-msg').textContent = data.nudge_message;
+        }
+        document.getElementById('nudge-toast').classList.add('show');
+        setTimeout(() => document.getElementById('nudge-toast').classList.remove('show'), 8000);
+    } catch(e) { console.error('Drift error:', e); }
+}
+
+async function generateRecap() {
+    document.getElementById('recap-story').textContent = 'Consulting expedition logs...';
+    document.getElementById('recap-overlay').classList.add('show');
+    try {
+        const res = await fetch('/api/generate_recap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        const data = await res.json();
+        document.getElementById('recap-story').textContent = `"${data.story || data.error}"`;
+    } catch(e) {
+        document.getElementById('recap-story').textContent = 'Signal lost in the fog.';
+    }
+}
+
+async function clearPacts() {
+    try {
+        await fetch('/api/pacts/clear', { method: 'POST' });
+        loadState();
+        loadTasteMap();
+        loadRecommendations(currentSurface);
+    } catch(e) {}
+}
+
+// ===== RENDERING =====
+function appendMsg(role, text) {
+    const log = document.getElementById('chat-log');
+    const div = document.createElement('div');
+    div.className = `msg msg-${role}`;
+    div.textContent = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+}
+
+function showTyping() {
+    const log = document.getElementById('chat-log');
+    const div = document.createElement('div');
+    div.className = 'msg msg-typing';
+    div.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    return div;
+}
+
+function removeTyping(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
+
+function renderPactCard(pact) {
+    const card = document.getElementById('pact-card');
+    if (!pact) {
+        card.innerHTML = '<div class="pact-empty">No active expedition.<br>Chat with Spotify Scout to start one.</div>';
+        return;
+    }
+    card.innerHTML = `
+        <div class="pact-target">✦ ${pact.target_genre}</div>
+        <div class="pact-meta">
+            <strong>Motivation:</strong> ${pact.motivation || 'Curiosity'}<br>
+            <strong>Duration:</strong> ${pact.duration_days || 7} days<br>
+            <strong>Status:</strong> ${pact.status}
+        </div>
+    `;
+}
+
+function renderTracks(tracks, pactGenre) {
+    const list = document.getElementById('track-list');
+    if (!tracks.length) {
+        list.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:20px; font-size:0.85rem;">No tracks for this surface yet.</div>';
+        return;
+    }
+    list.innerHTML = tracks.map(t => {
+        const isPact = pactGenre && t.genre === pactGenre;
+        return `
+        <div class="track-card ${isPact ? 'is-pact' : ''}">
+            <img class="track-art" src="${t.cover_url}" alt="" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%23111%22 width=%2240%22 height=%2240%22/></svg>'">
+            <div class="track-info">
+                <div class="track-title">${t.title}</div>
+                <div class="track-artist">${t.artist}</div>
+            </div>
+            <span class="track-genre-tag ${isPact ? 'pact-tag' : ''}">${t.genre}</span>
+        </div>`;
+    }).join('');
+}
+
+function renderTasteMap(genres) {
+    const container = document.getElementById('map-nodes');
+    const svgEl = document.getElementById('map-edges');
+    container.innerHTML = '';
+    svgEl.innerHTML = '';
+
+    const area = document.getElementById('map-area');
+    const W = area.offsetWidth;
+    const H = area.offsetHeight;
+
+    // Draw edges
+    GENRE_EDGES.forEach(([a, b]) => {
+        const ca = GENRE_COORDS[a];
+        const cb = GENRE_COORDS[b];
+        if (!ca || !cb) return;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', `${ca.x}%`);
+        line.setAttribute('y1', `${ca.y}%`);
+        line.setAttribute('x2', `${cb.x}%`);
+        line.setAttribute('y2', `${cb.y}%`);
+        line.setAttribute('stroke', 'rgba(255,255,255,0.04)');
+        line.setAttribute('stroke-width', '1');
+        svgEl.appendChild(line);
+    });
+
+    // Draw nodes
+    genres.forEach(g => {
+        const coords = GENRE_COORDS[g.genre];
+        if (!coords) return;
+
+        const zoneClass = `node-${g.zone}`;
+        const icon = g.zone === 'uncharted' ? '?' : (g.zone === 'exploring' ? '⚡' : '✦');
+
+        const node = document.createElement('div');
+        node.className = `map-node ${zoneClass}`;
+        node.style.left = `calc(${coords.x}% - 30px)`;
+        node.style.top = `calc(${coords.y}% - 30px)`;
+        node.innerHTML = `
+            <span class="node-icon">${icon}</span>
+            <div class="map-node-label">${g.genre}</div>
+        `;
+        node.title = `${g.genre} — ${g.zone} (${(g.affinity * 100).toFixed(0)}% affinity, ${g.listens} listens)`;
+        container.appendChild(node);
+    });
+}
+
+function celebratePact() {
+    const container = document.getElementById('confetti-container');
+    const colors = ['#a855f7', '#1ed760', '#f59e0b', '#ef4444', '#3b82f6'];
+    for (let i = 0; i < 50; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        piece.style.left = Math.random() * 100 + '%';
+        piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.animationDelay = Math.random() * 0.5 + 's';
+        piece.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+        container.appendChild(piece);
+    }
+    setTimeout(() => { container.innerHTML = ''; }, 3500);
+}
+</script>
+</body>
+</html>

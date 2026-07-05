@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scout: Phase 1 Debug UI</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 250px 1fr; gap: 20px; }
+        .panel { background: #181818; padding: 20px; border-radius: 8px; border: 1px solid #333; }
+        h2 { margin-top: 0; font-size: 1.2rem; color: #1db954; }
+        input, button { padding: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; border-radius: 4px; border: 1px solid #333; background: #282828; color: #fff; }
+        button { background: #1db954; color: #000; font-weight: bold; cursor: pointer; border: none; }
+        button:hover { background: #1ed760; }
+        button.secondary { background: #333; color: #fff; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { flex: 1; text-align: center; background: #282828; }
+        .tab.active { background: #1db954; color: #000; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        .track { background: #282828; padding: 10px; border-radius: 6px; }
+        .track.is-pact { border: 2px solid #a855f7; background: #2a1b38; }
+        .track img { width: 100%; aspect-ratio: 1; border-radius: 4px; margin-bottom: 10px; }
+        .track-title { font-weight: bold; font-size: 0.9rem; margin-bottom: 4px; }
+        .track-artist, .track-genre { font-size: 0.8rem; color: #b3b3b3; margin-bottom: 4px; }
+        .scout-note { font-size: 0.75rem; color: #a855f7; font-style: italic; margin-top: 8px; }
+        pre { font-size: 0.8rem; white-space: pre-wrap; word-wrap: break-word; color: #a855f7; }
+    </style>
+</head>
+<body>
+    <h1>Scout: Phase 1 (Core Blending Logic)</h1>
+    <p>This is a raw debug view to verify that the math for cross-surface blending works before we build the conversational AI and Taste Map in Phases 2 and 3.</p>
+    
+    <div class="container">
+        <!-- Debug Sidebar -->
+        <div class="panel">
+            <h2>Active Pact State</h2>
+            <div id="pact-state">Loading...</div>
+            
+            <h2 style="margin-top: 30px;">Trigger Pact (Mock)</h2>
+            <input type="text" id="intent-input" placeholder="Type 'ambient', 'jazz', or 'metal'">
+            <button onclick="createPact()">Start Mock Pact</button>
+            <button onclick="clearPact()" class="secondary">Clear Pact</button>
+        </div>
+
+        <!-- Surfaces -->
+        <div class="panel">
+            <div class="tabs">
+                <button class="tab active" onclick="loadSurface('homepage', this)">Homepage</button>
+                <button class="tab" onclick="loadSurface('autoplay', this)">Autoplay Queue</button>
+                <button class="tab" onclick="loadSurface('radio', this)">Radio</button>
+                <button class="tab" onclick="loadSurface('daily_mix', this)">Daily Mix</button>
+            </div>
+            
+            <div id="loading" style="display: none;">Loading tracks...</div>
+            <div class="grid" id="track-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentSurface = 'homepage';
+
+        async function fetchState() {
+            const res = await fetch('/api/phase1/state');
+            const data = await res.json();
+            const el = document.getElementById('pact-state');
+            if (data.active_pact) {
+                el.innerHTML = `<pre>${JSON.stringify(data.active_pact, null, 2)}</pre>`;
+            } else {
+                el.innerHTML = "<em>No active pact. You will only see baseline recommendations (Pop/Indie Pop).</em>";
+            }
+        }
+
+        async function createPact() {
+            const intent = document.getElementById('intent-input').value || 'ambient';
+            await fetch('/api/phase1/pacts', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({intent_raw: intent})
+            });
+            await fetchState();
+            await loadSurface(currentSurface, document.querySelector('.tab.active'));
+        }
+
+        async function clearPact() {
+            await fetch('/api/phase1/pacts/clear', { method: 'POST' });
+            await fetchState();
+            await loadSurface(currentSurface, document.querySelector('.tab.active'));
+        }
+
+        async function loadSurface(surfaceId, btnElement) {
+            currentSurface = surfaceId;
+            
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+            if(btnElement) btnElement.classList.add('active');
+            
+            const grid = document.getElementById('track-grid');
+            const loading = document.getElementById('loading');
+            
+            grid.innerHTML = '';
+            loading.style.display = 'block';
+            
+            const res = await fetch(`/api/phase1/recommendations/${surfaceId}`);
+            const tracks = await res.json();
+            
+            loading.style.display = 'none';
+            
+            tracks.forEach(track => {
+                const div = document.createElement('div');
+                div.className = `track ${track.is_pact_track ? 'is-pact' : ''}`;
+                div.innerHTML = `
+                    <img src="${track.cover_image_url}" alt="cover">
+                    <div class="track-title">${track.title}</div>
+                    <div class="track-artist">${track.artist}</div>
+                    <div class="track-genre">${track.genre}</div>
+                    ${track.scout_explanation ? `<div class="scout-note">✦ ${track.scout_explanation}</div>` : ''}
+                `;
+                grid.appendChild(div);
+            });
+        }
+
+        // Init
+        fetchState();
+        loadSurface(currentSurface, document.querySelector('.tab.active'));
+    </script>
+</body>
+</html>
