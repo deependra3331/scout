@@ -4,12 +4,23 @@ Scout LLM - Refined personality layer powered by Groq (Llama 3 70B).
 
 import os
 import json
+import random
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 MODEL_NAME = "llama-3.3-70b-versatile"
+
+# Fallback responses for when Groq client isn't available
+FALLBACK_RESPONSES = [
+    "🗺️ Your map's looking a little familiar. Tell me — what sound have you been circling but never stepped into?",
+    "🧭 Compass is acting up. What's a genre you've been curious about but never dived into?",
+    "🌫️ Fog's rolling in. What's something sonically new you've been wanting to explore?",
+    "🎧 Fresh terrain ahead — what's a sound you've been avoiding but secretly want to check out?",
+    "⛰️ Uncharted territory calls your name. What's a genre you've never given a real chance?",
+    "🔭 I see something on the horizon. What artist or style have you been meaning to explore?"
+]
 
 # ---------------------------------------------------------------------------
 # Groq client (graceful if key is missing)
@@ -59,10 +70,7 @@ def chat_with_scout(
 ) -> str:
     """Main conversational endpoint — Scout replies to the user."""
     if not client:
-        return (
-            "🗺️ Your map's looking a little familiar. "
-            "Tell me — what sound have you been circling but never stepped into?"
-        )
+        return random.choice(FALLBACK_RESPONSES)
 
     system = SCOUT_SYSTEM_PROMPT.format(
         baseline_context=_baseline_context_block(baseline_tastes)
